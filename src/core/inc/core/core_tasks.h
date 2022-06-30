@@ -14,8 +14,8 @@
 #define CORE_TASK_SIZE(a)            (sizeof(CORE_TASK_STACK_TYPE)*(a))
 
 
-#define CORE_STRIP_INIT_TASK_PRIO     (CORE_TASK_PRIO_MIN + 3)
-#define CORE_STRIP_INIT_TASK_STACK    (4*KBYTE)
-#define CORE_STRIP_INIT_TASK_NAME     "stripinit"
+#define CORE_LORA_TASK_PRIO         (CORE_TASK_PRIO_MIN + 6)
+#define CORE_LORA_TASK_STACK        (4*KBYTE + CORE_TASK_MIN_STACK)
+#define CORE_LORA_TASK_NAME         "lora_process_task_rx"
 
 #endif
