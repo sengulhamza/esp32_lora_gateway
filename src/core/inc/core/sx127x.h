@@ -84,6 +84,7 @@ extern "C" {
 
 #define LoRa_EUROPE_FREQUENCY (838e6)
 
+void sx127x_set_task_params(void *task);
 void sx127x_configure_pins(spi_host_device_t host, uint8_t miso, uint8_t mosi, uint8_t sclk, uint8_t nss, uint8_t rst, uint8_t dio0);
 void sx127x_init(void);
 void sx127x_write_reg(uint8_t adrr, uint8_t data);

@@ -12,6 +12,12 @@
 
 static const char *TAG = "sx127x_driver";
 
+static TaskHandle_t task_handle;
+
+typedef struct {
+    void (*task)(void *pvParameter);
+} sx127x_frtos_params;
+
 typedef struct {
     spi_host_device_t spi_host;
     gpio_num_t pin_miso;
@@ -21,6 +27,7 @@ typedef struct {
     gpio_num_t pin_rx_tx;
     gpio_num_t pin_rst;
     gpio_num_t pin_dio0;
+    sx127x_frtos_params frtos_p;
 } sx127x_pin_conf_t;
 static sx127x_pin_conf_t sx127x_conf;
 static spi_device_handle_t spi_handle;
@@ -29,6 +36,24 @@ static long __frequency = 0;
 static int __implicit  = 0;
 static void assert_nss(spi_transaction_t *trans);
 static void deassert_nss(spi_transaction_t *trans);
+
+#define NOTIFY_BIT_DIO 1
+void IRAM_ATTR qio_irq_handler(void *arg)
+{
+    BaseType_t higher_prio_task_woken = pdFALSE;
+    xTaskNotifyFromISR(task_handle, NOTIFY_BIT_DIO, eSetBits, &higher_prio_task_woken);
+    if (higher_prio_task_woken) {
+        portYIELD_FROM_ISR();
+    }
+}
+
+void sx127x_set_task_params(void *task)
+{
+    sx127x_conf.frtos_p.task = task;
+    if (sx127x_conf.frtos_p.task == NULL) {
+        ESP_LOGE(TAG, "sx127x_conf.frtos_p.task is null");
+    }
+}
 
 void sx127x_configure_pins(spi_host_device_t host, uint8_t miso, uint8_t mosi, uint8_t sclk, uint8_t nss, uint8_t rst, uint8_t dio0)
 {
@@ -72,7 +97,7 @@ static void sx127x_init_io(void)
         .intr_type = GPIO_INTR_POSEDGE,
     };
     gpio_config(&input_pin_config);
-
+    gpio_isr_handler_add(sx127x_conf.pin_dio0, qio_irq_handler, (void *)0);
     ESP_LOGI(TAG, "IO initialized");
 }
 
@@ -293,6 +318,7 @@ void sx127x_init(void)
 {
     sx127x_init_io();
     sx127x_init_spi();
+    xTaskCreate(sx127x_conf.frtos_p.task, "ttn_lmic", 1024 * 4, NULL, 10, &task_handle);
     sx127x_reset();
     sx127x_set_frequency(LoRa_EUROPE_FREQUENCY);
     sx127x_enable_crc();
