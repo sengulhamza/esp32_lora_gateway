@@ -31,7 +31,6 @@ typedef struct {
 } sx127x_pin_conf_t;
 static sx127x_pin_conf_t sx127x_conf;
 static spi_device_handle_t spi_handle;
-static spi_transaction_t spi_transaction;
 static long __frequency = 0;
 static int __implicit  = 0;
 static void assert_nss(spi_transaction_t *trans);
@@ -68,10 +67,6 @@ void sx127x_configure_pins(spi_host_device_t host, uint8_t miso, uint8_t mosi, u
 
 static void sx127x_init_io(void)
 {
-    // ASSERT(sx127x_conf.pin_nss != SX127X_UNSED_PIN_NUM);
-    // ASSERT(sx127x_conf.pin_dio0 != SX127X_UNSED_PIN_NUM);
-    // ASSERT(sx127x_conf.pin_rst != SX127X_UNSED_PIN_NUM);
-
     // Initialize the GPIO ISR handler service
     esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     ESP_ERROR_CHECK(err);
@@ -104,13 +99,14 @@ static void sx127x_init_io(void)
 static void sx127x_init_spi(void)
 {
     // Initialize SPI bus
-    spi_bus_config_t spi_bus_config = {0};
-    spi_bus_config.miso_io_num =  sx127x_conf.pin_miso;
-    spi_bus_config.mosi_io_num =  sx127x_conf.pin_mosi;
-    spi_bus_config.sclk_io_num =  sx127x_conf.pin_sclk;
-    spi_bus_config.quadwp_io_num = -1;
-    spi_bus_config.quadhd_io_num = -1;
-    spi_bus_config.max_transfer_sz = 0;
+    spi_bus_config_t spi_bus_config = {
+        .miso_io_num =  sx127x_conf.pin_miso,
+        .mosi_io_num =  sx127x_conf.pin_mosi,
+        .sclk_io_num =  sx127x_conf.pin_sclk,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 0,
+    };
     esp_err_t err = spi_bus_initialize(sx127x_conf.spi_host, &spi_bus_config, SPI_DMA_DISABLED);
     ESP_ERROR_CHECK(err);
 
@@ -131,23 +127,24 @@ static void sx127x_init_spi(void)
 
 void sx127x_spi_write(uint8_t cmd, const uint8_t *buf, size_t len)
 {
-    memset(&spi_transaction, 0, sizeof(spi_transaction));
-    spi_transaction.addr = cmd;
-    spi_transaction.length = 8 * len;
-    spi_transaction.tx_buffer = buf;
+    spi_transaction_t spi_transaction = {
+        .addr = cmd,
+        .length = 8 * len,
+        .tx_buffer = buf,
+    };
     esp_err_t err = spi_device_transmit(spi_handle, &spi_transaction);
     ESP_ERROR_CHECK(err);
 }
 
 void sx127x_spi_read(uint8_t cmd, uint8_t *buf, size_t len)
 {
-    memset(buf, 0, len);
-    memset(&spi_transaction, 0, sizeof(spi_transaction));
-    spi_transaction.addr = cmd;
-    spi_transaction.length = 8 * len;
-    spi_transaction.rxlength = 8 * len;
-    spi_transaction.tx_buffer = buf;
-    spi_transaction.rx_buffer = buf;
+    spi_transaction_t spi_transaction = {
+        .addr = cmd,
+        .length = 8 * len,
+        .rxlength = 8 * len,
+        .tx_buffer = buf,
+        .rx_buffer = buf,
+    };
     esp_err_t err = spi_device_transmit(spi_handle, &spi_transaction);
     ESP_ERROR_CHECK(err);
 }
@@ -215,13 +212,9 @@ void sx127x_send_packet(uint8_t *buf, int size)
     sx127x_idle();
     sx127x_write_reg(REG_FIFO_ADDR_PTR, 0);
 
-    sx127x_write_buf(REG_FIFO, buf, size);
+    sx127x_write_buf(REG_FIFO, buf, size); //write module tx fifo from buffer
 
-    // for (int i = 0; i < size; i++) {
-    //     lora_write_reg(REG_FIFO, *buf++);
-    // }
-
-    sx127x_write_reg(REG_PAYLOAD_LENGTH, size);
+    sx127x_write_reg(REG_PAYLOAD_LENGTH, size); //write buffer len
 
     /*
      * Start transmission and wait for conclusion.
@@ -232,6 +225,7 @@ void sx127x_send_packet(uint8_t *buf, int size)
     }
 
     sx127x_write_reg(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
+    sx127x_receive(); // TODO: Write radio.c to managing lora radio (op mode, rx events ex.)
 }
 
 void sx127x_receive(void)
@@ -294,10 +288,7 @@ int sx127x_receive_packet(uint8_t *buf, int size)
     if (len > size) {
         len = size;
     }
-    sx127x_read_buf(REG_FIFO, buf, len);
-    // for (int i = 0; i < len; i++) {
-    //     *buf++ = sx127x_read_reg(REG_FIFO);
-    // }
+    sx127x_read_buf(REG_FIFO, buf, len); //read rx fifo to buffer
     return len;
 }
 
@@ -318,7 +309,7 @@ void sx127x_init(void)
 {
     sx127x_init_io();
     sx127x_init_spi();
-    xTaskCreate(sx127x_conf.frtos_p.task, "ttn_lmic", 1024 * 4, NULL, 10, &task_handle);
+    xTaskCreate(sx127x_conf.frtos_p.task, "ttn_lmic", 1024 * 4, NULL, 10, &task_handle); //TODO: tasks, event or queue will manage on efficiently
     sx127x_reset();
     sx127x_set_frequency(LoRa_EUROPE_FREQUENCY);
     sx127x_enable_crc();
