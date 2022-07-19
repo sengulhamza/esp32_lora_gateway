@@ -63,10 +63,23 @@ _exit:      cJSON_Delete(root);
     }
 }
 #endif
+
+void lmic_background_task(void *pvParameter)
+{
+    ESP_LOGW(TAG, "%s started!", __func__);
+    while (pdTRUE) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ESP_LOGW(TAG, "%s handled.", __func__);
+    }
+    vTaskDelete(NULL);
+}
+
 esp_err_t lora_process_start(void)
 {
     esp_err_t ret = ESP_OK;
     sx127x_configure_pins(TTN_SPI_HOST, TTN_PIN_SPI_MISO, TTN_PIN_SPI_MOSI, TTN_PIN_SPI_SCLK, TTN_PIN_NSS, TTN_PIN_RST, TTN_PIN_DIO0);
+    sx127x_set_task_params(lmic_background_task);
+
     sx127x_init();
 
     ret |= xTaskCreate(lora_process_task_rx,
