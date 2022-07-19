@@ -164,7 +164,7 @@ void sx127x_write_reg(uint8_t addr, uint8_t data)
     sx127x_spi_write(addr | 0x80, &data, 1);
 }
 
-void sx127x_write_buf(uint8_t addr, uint8_t *buf, uint8_t len)
+void sx127x_write_buf(uint8_t addr, uint8_t *buf, size_t len)
 {
     sx127x_spi_write(addr | 0x80, buf, len);
 }
@@ -176,7 +176,7 @@ uint8_t sx127x_read_reg(uint8_t addr)
     return reg_value_buf;
 }
 
-void sx127x_read_buf(uint8_t addr, uint8_t *buf, uint8_t len)
+void sx127x_read_buf(uint8_t addr, uint8_t *buf, size_t len)
 {
     sx127x_spi_read(addr & 0x7f, buf, len);
 }
@@ -207,7 +207,7 @@ void sx127x_sleep(void)
     sx127x_write_reg(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP);
 }
 
-void sx127x_send_packet(uint8_t *buf, int size)
+void sx127x_send_packet(uint8_t *buf, size_t size)
 {
     sx127x_idle();
     sx127x_write_reg(REG_FIFO_ADDR_PTR, 0);
@@ -255,14 +255,14 @@ void sx127x_explicit_header_mode(void)
     sx127x_write_reg(REG_MODEM_CONFIG_1, sx127x_read_reg(REG_MODEM_CONFIG_1) & 0xfe);
 }
 
-int sx127x_receive_packet(uint8_t *buf, int size)
+int sx127x_receive_packet(uint8_t *buf, size_t size)
 {
     int len = 0;
 
     /*
      * Check interrupts.
      */
-    int irq = sx127x_read_reg(REG_IRQ_FLAGS);
+    uint8_t irq = sx127x_read_reg(REG_IRQ_FLAGS);
     sx127x_write_reg(REG_IRQ_FLAGS, irq);
     if ((irq & IRQ_RX_DONE_MASK) == 0) {
         return 0;
@@ -300,7 +300,7 @@ int sx127x_packet_rssi(void)
 void sx127x_reset(void)
 {
     gpio_set_level(sx127x_conf.pin_rst, 0);
-    vTaskDelay(pdMS_TO_TICKS(1));
+    vTaskDelay(pdMS_TO_TICKS(10));
     gpio_set_level(sx127x_conf.pin_rst, 1);
     vTaskDelay(pdMS_TO_TICKS(10));
 }

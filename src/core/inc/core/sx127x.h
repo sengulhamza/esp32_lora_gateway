@@ -88,16 +88,16 @@ void sx127x_set_task_params(void *task);
 void sx127x_configure_pins(spi_host_device_t host, uint8_t miso, uint8_t mosi, uint8_t sclk, uint8_t nss, uint8_t rst, uint8_t dio0);
 void sx127x_init(void);
 void sx127x_write_reg(uint8_t adrr, uint8_t data);
-void sx127x_write_buf(uint8_t addr, uint8_t *buf, uint8_t len);
+void sx127x_write_buf(uint8_t addr, uint8_t *buf, size_t len);
 uint8_t sx127x_read_reg(uint8_t addr);
-void sx127x_read_buf(uint8_t addr, uint8_t *buf, uint8_t len);
+void sx127x_read_buf(uint8_t addr, uint8_t *buf, size_t len);
 void sx127x_reset(void);
 void sx127x_set_frequency(long frequency);
 void sx127x_enable_crc(void);
-void sx127x_send_packet(uint8_t *buf, int size);
+void sx127x_send_packet(uint8_t *buf, size_t size);
 void sx127x_receive(void);
 uint8_t sx127x_received(void);
-int sx127x_receive_packet(uint8_t *buf, int size);
+int sx127x_receive_packet(uint8_t *buf, size_t size);
 int sx127x_packet_rssi(void);
 
 
