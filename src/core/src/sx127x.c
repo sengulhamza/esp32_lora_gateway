@@ -112,7 +112,7 @@ static void sx127x_init_spi(void)
 
     spi_device_interface_config_t spi_config = {
         .mode = 0,
-        .clock_speed_hz = SPI_MASTER_FREQ_10M,
+        .clock_speed_hz = SPI_MASTER_FREQ_8M,
         .command_bits = 0,
         .address_bits = 8,
         .spics_io_num = -1,
@@ -300,9 +300,9 @@ int sx127x_packet_rssi(void)
 void sx127x_reset(void)
 {
     gpio_set_level(sx127x_conf.pin_rst, 0);
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(100));
     gpio_set_level(sx127x_conf.pin_rst, 1);
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(100));
 }
 
 void sx127x_init(void)

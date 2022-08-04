@@ -1,6 +1,7 @@
 set(sources
     src/app_mngr.cpp
     src/lora_manager.c
+    src/provisioning_manager.c
 )
 
 idf_component_register(
