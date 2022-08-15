@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #define LORA_PACKET_ID_PROVISING 0xE1
+#define LORA_PACKET_ID_PROVISING_OK 0xD1
 
 typedef struct {
     uint8_t packet_id;
@@ -18,6 +19,7 @@ typedef struct {
 } lora_tx_packet;
 
 esp_err_t lora_process_start(void);
+esp_err_t lora_send_tx_queue(uint8_t packet_id, uint8_t *data, uint8_t data_len);
 
 #ifdef __cplusplus
 }

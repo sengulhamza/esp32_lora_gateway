@@ -15,15 +15,6 @@
 
 static const char *TAG = "provisioning_manager";
 
-static esp_err_t provisioning_mngr_check_cmd(uint8_t packet_id)
-{
-    if (packet_id == LORA_PACKET_ID_PROVISING) {
-        return ESP_OK;
-    }
-    ESP_LOGE(TAG, "Packet id is not provisioning packet id! Packet_id:0x%x", packet_id);
-    return ESP_FAIL;
-}
-
 static esp_err_t provisioning_mngr_check_client_is_exist(provisioning_t *provisioning_packet)
 {
     char c_path[sizeof(provisioning_packet->global_dev_eui) + strlen(APP_CONFIG_FILE_BASE_PATH) + 1];
@@ -50,22 +41,49 @@ static esp_err_t provisioning_mngr_approve_client(provisioning_t *provisioning_p
     if (provisioning_mngr_check_client_is_exist(provisioning_packet) == ESP_OK) {
         ESP_LOGI(TAG, "New client added to client list.");
         ESP_LOG_BUFFER_HEX(TAG, provisioning_packet->global_dev_eui, sizeof(provisioning_packet->global_dev_eui));
+        lora_send_tx_queue(LORA_PACKET_ID_PROVISING_OK, NULL, 0);
     }
     return ESP_OK;
 }
 
-esp_err_t provisioning_mngr_add_new_client(lora_tx_packet *lora_data, char *app_key)
+static esp_err_t provisioning_mngr_check_app_key(lora_tx_packet *lora_data, char *app_key)
 {
-    if (provisioning_mngr_check_cmd(lora_data->packet_id) != ESP_OK) {
-        return ESP_FAIL;
-    }
     provisioning_t *provisioning_packet = (provisioning_t *)lora_data->data;
     if (!strncmp((char *)&provisioning_packet->app_key, app_key, sizeof(provisioning_packet->app_key))) {
         ESP_LOG_BUFFER_HEXDUMP(TAG, provisioning_packet->app_key, sizeof(provisioning_packet->app_key), ESP_LOG_WARN);
-        provisioning_mngr_approve_client(provisioning_packet);
         return ESP_OK;
     }
-
     ESP_LOGE(TAG, "App key not matched! %s -- %s", (char *)&provisioning_packet->app_key, app_key);
     return ESP_FAIL;
+}
+
+esp_err_t provisioning_mngr_add_new_client(lora_tx_packet *lora_data, char *app_key)
+{
+    provisioning_t *provisioning_packet = (provisioning_t *)lora_data->data;
+    if (provisioning_mngr_check_app_key(lora_data, app_key) == ESP_OK) {
+        ESP_LOGE(TAG, "App key not matched! %s -- %s", (char *)&provisioning_packet->app_key, app_key);
+        return ESP_FAIL;
+    }
+    return provisioning_mngr_approve_client(provisioning_packet);
+}
+
+esp_err_t provisioning_mngr_provis_is_ok(lora_tx_packet *lora_data, char *app_key)
+{
+    if (provisioning_mngr_check_app_key(lora_data, app_key) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    provisioning_t *provisioning_packet = (provisioning_t *)lora_data->data;
+    if (file_overwrite(APP_CONFIG_FILE_APPROVE_GW, (char *)provisioning_packet->global_dev_eui, sizeof(provisioning_packet->global_dev_eui))) {
+        ESP_LOGI(TAG, "New device added");
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
+
+bool provisioning_mngr_check_device_is_approved(void)
+{
+    if (file_is_exist(APP_CONFIG_FILE_APPROVE_GW)) {
+        return true;
+    }
+    return false;
 }
