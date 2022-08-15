@@ -8,6 +8,8 @@
 #include "cJSON.h"
 #include "core/core_tasks.h"
 #include "core/sx127x.h"
+#include "core/utils.h"
+#include "app/app_types.h"
 #include "app/lora_manager.h"
 #include "app/provisioning_manager.h"
 
@@ -18,14 +20,10 @@ lora_tx_packet tx_test_packet = {0};
 
 void lora_prepare_provisioning_packet(lora_tx_packet *packet)
 {
-    uint8_t mac[6];
-    esp_err_t err = esp_efuse_mac_get_default(mac);
-    ESP_ERROR_CHECK(err);
     provisioning_t provisioning_packet = {
-        .global_dev_eui = {mac[5], mac[4],  mac[3], 0xfe, 0xff,  mac[2],  mac[1],  mac[0] },
         .app_key = {TEST_APP_KEY},
     };
-
+    strcpy((char *)provisioning_packet.global_dev_eui,  utils_get_mac());
     packet->packet_id = LORA_PACKET_ID_PROVISING;
     memcpy(packet->data, &provisioning_packet, sizeof(provisioning_packet));
     packet->data_len = sizeof(provisioning_packet);

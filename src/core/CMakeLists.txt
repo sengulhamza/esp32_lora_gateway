@@ -1,6 +1,7 @@
 set(sources
     src/file_mngr.c
     src/sx127x.c
+    src/utils.c
 )
 
 idf_component_register(

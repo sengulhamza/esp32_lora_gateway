@@ -7,10 +7,11 @@
 #include "nvs_flash.h"
 #include "esp_ota_ops.h"
 #include "core_includes.h"
+#include "core/sx127x.h"
+#include "core/utils.h"
 #include "app_config.h"
 #include "app_types.h"
 #include "app/lora_manager.h"
-#include "core/sx127x.h"
 
 static const char *TAG = "appmngr";
 
@@ -36,7 +37,7 @@ static char *app_get_serial(void)
 
     if (s_app_serial[0] == '\0') {
         strcpy(s_app_serial, APP_DEV_MODEL);
-        strcat(s_app_serial, APP_SERIAL); //wifi_mngr_get_mac() //TODO add generic serial generator in case wifi is not exist
+        strcat(s_app_serial, utils_get_mac());
     }
     return s_app_serial;
 }
