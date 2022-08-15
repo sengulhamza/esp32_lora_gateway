@@ -2,6 +2,7 @@
 #define _PROVISIONING_MANAGER_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "esp_err.h"
 
 #ifdef __cplusplus
@@ -14,6 +15,9 @@ typedef struct {
 } provisioning_t;
 
 esp_err_t provisioning_mngr_add_new_client(lora_tx_packet *lora_data, char *app_key);
+esp_err_t provisioning_mngr_provis_is_ok(lora_tx_packet *lora_data, char *app_key);
+bool provisioning_mngr_check_device_is_approved(void);
+
 
 #ifdef __cplusplus
 }
