@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    uint8_t global_dev_eui[8];
+    uint8_t global_dev_eui[12 + 1];
     uint8_t app_key[16];
 } provisioning_t;
 
