@@ -8,7 +8,9 @@
 #include "esp_log.h"
 #include "sx127x.h"
 
-#define SX127X_UNSED_PIN_NUM -1
+#define SX127X_UNSED_PIN_NUM        -1
+#define SX127X_VERSION              0x12
+#define SX127X_VERSION_TIMEOUT_S    2
 
 static const char *TAG = "sx127x_driver";
 
@@ -305,6 +307,19 @@ void sx127x_reset(void)
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 
+esp_err_t sx127x_version_check(uint16_t timeout_sec)
+{
+    int16_t period = 500, max_try_count = timeout_sec * 1000 / period;
+    while (sx127x_read_reg(REG_VERSION) != SX127X_VERSION) {
+        vTaskDelay(pdMS_TO_TICKS(period));
+        if (--max_try_count <= 0) {
+            return ESP_ERR_TIMEOUT;
+        }
+    }
+    ESP_LOGI(TAG, "version is OK.");
+    return ESP_OK;
+}
+
 void sx127x_init(void)
 {
     sx127x_init_io();
@@ -321,4 +336,5 @@ void sx127x_init(void)
     sx127x_write_reg(REG_MODEM_CONFIG_3, LORA_WRITE_REG_VALUE_3);
     sx127x_set_tx_power(LORA_TX_POWER);
     sx127x_idle();
+    sx127x_version_check(SX127X_VERSION_TIMEOUT_S);
 }
