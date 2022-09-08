@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(EXTRA_COMPONENT_DIRS src)
 
 set(application_name "esp32_lora_gateway")
-set(application_version "0.0.1")
+set(application_version "0.1.0")
 
 set(PROJECT_VER ${application_version})
 
