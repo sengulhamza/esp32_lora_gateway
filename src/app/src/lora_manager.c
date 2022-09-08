@@ -4,6 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/timers.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "cJSON.h"
@@ -20,6 +21,7 @@
 static const char *TAG = "lora_manager";
 
 static xQueueHandle s_tx_queue = {0};
+static TimerHandle_t s_client_test_payload_timer = NULL;
 
 lora_tx_packet tx_test_packet = {0};
 
@@ -66,35 +68,21 @@ void lora_process_task_tx(void *p)
     uint8_t hello_lora[] = {"Hello lora devices!"};
     sx127x_send_packet(hello_lora, sizeof(hello_lora));
 
-    /* TODO Device mod paramater will update before all task in app_mngr. */
-    bool device_is_master_test = false;
-    if (!strcmp(app_params.dev_serial, "MEPLGW7821848D25D4")) {
-        ESP_LOGW(TAG, "MASTER DEVICE!");
-        device_is_master_test = true;
-        goto lora_tx_loop;
-    }
-
-    while (!provisioning_mngr_check_device_is_approved()) {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        lora_prepare_provisioning_packet(&tx_test_packet);
-        sx127x_send_packet((uint8_t *)&tx_test_packet, sizeof(tx_test_packet));
-        ESP_LOGI(TAG, "provisioning packet sent");
-    }
-
-lora_tx_loop:
-    while (pdTRUE) {
-        /* check if there is something to write */
-        if (uxQueueMessagesWaiting(s_tx_queue) > 0) {
-            lora_tx_packet tx_packet = {0};
-            if (xQueueReceive(s_tx_queue, (void *)&tx_packet, 0)) {
-                sx127x_send_packet((uint8_t *)&tx_packet, sizeof(tx_packet));
-                ESP_LOGI(TAG, "there is a tx request. ID: %x", tx_packet.packet_id);
-            }
-        } else if (!device_is_master_test) {
-            uint8_t test_data[] = {"0123456789ABCDEF_client_test_data"};
-            lora_send_tx_queue(0xAE, test_data, sizeof(test_data));
+    if (app_params.device_type == APP_DEVICE_IS_CLIENT) {
+        /* Client needs provisioning with master */
+        while (!provisioning_mngr_check_device_is_approved()) {
+            lora_prepare_provisioning_packet(&tx_test_packet);
+            sx127x_send_packet((uint8_t *)&tx_test_packet, sizeof(tx_test_packet));
+            ESP_LOGI(TAG, "provisioning packet sent");
+            vTaskDelay(pdMS_TO_TICKS(5000));
         }
-        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+    while (pdTRUE) {
+        lora_tx_packet tx_packet = {0};
+        if (xQueueReceive(s_tx_queue, (void *)&tx_packet, portMAX_DELAY)) {
+            sx127x_send_packet((uint8_t *)&tx_packet, sizeof(tx_packet));
+            ESP_LOGI(TAG, "there is a tx request. ID: %x", tx_packet.packet_id);
+        }
     }
 }
 
@@ -106,7 +94,9 @@ void lora_rx_commander(lora_tx_packet *lora_rx_packet)
         provisioning_mngr_add_new_client(lora_rx_packet, TEST_APP_KEY);
         break;
     case LORA_PACKET_ID_PROVISING_OK:
-        provisioning_mngr_provis_is_ok(lora_rx_packet, TEST_APP_KEY);
+        if (provisioning_mngr_provis_is_ok(lora_rx_packet, TEST_APP_KEY) == ESP_OK) {
+            xTimerStart(s_client_test_payload_timer, portMAX_DELAY);
+        }
         break;
     default:
         break;
@@ -128,6 +118,16 @@ void lora_process_task_rx(void *pvParameter)
     }
 }
 
+static void client_timer_cb(TimerHandle_t xTimer)
+{
+    uint8_t test_data[] = {"0123456789ABCDEF_client_test_data"};
+    lora_send_tx_queue(0xAE, test_data, sizeof(test_data));
+
+    ESP_LOGW(TAG, "free_heap/min_heap size %d/%d Bytes",
+             esp_get_free_heap_size(),
+             esp_get_minimum_free_heap_size());
+}
+
 esp_err_t lora_process_start(void)
 {
     esp_err_t ret = ESP_OK;
@@ -146,5 +146,17 @@ esp_err_t lora_process_start(void)
                        NULL,
                        CORE_LORA_TASK_PRIO,
                        NULL);
+
+    /* This timer using to generate test data from clients to master. TODO Remove later */
+    if (app_params.device_type == APP_DEVICE_IS_CLIENT) {
+        s_client_test_payload_timer = xTimerCreate(
+                                          "client_test_payload_timer",
+                                          (1000) / portTICK_PERIOD_MS,
+                                          pdTRUE,                  // Auto-reload
+                                          NULL,                    // Timer ID
+                                          client_timer_cb);        // Callback function
+        xTimerStop(s_client_test_payload_timer, portMAX_DELAY);
+    }
+
     return ret;
 }

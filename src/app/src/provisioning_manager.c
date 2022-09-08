@@ -51,21 +51,21 @@ static esp_err_t provisioning_mngr_check_app_key(lora_tx_packet *lora_data, char
 {
     provisioning_t *provisioning_packet = (provisioning_t *)lora_data->data;
     if (!strncmp((char *)&provisioning_packet->app_key, app_key, sizeof(provisioning_packet->app_key))) {
-        ESP_LOG_BUFFER_HEXDUMP(TAG, provisioning_packet->app_key, sizeof(provisioning_packet->app_key), ESP_LOG_WARN);
+        //ESP_LOG_BUFFER_HEXDUMP(TAG, provisioning_packet->app_key, sizeof(provisioning_packet->app_key), ESP_LOG_WARN);
+        ESP_LOGI(TAG, "App keys matched");
         return ESP_OK;
     }
-    ESP_LOGE(TAG, "App key not matched! %s -- %s", (char *)&provisioning_packet->app_key, app_key);
+    ESP_LOGE(TAG, "App keys could not match! %s -- %s", (char *)&provisioning_packet->app_key, app_key);
     return ESP_FAIL;
 }
 
 esp_err_t provisioning_mngr_add_new_client(lora_tx_packet *lora_data, char *app_key)
 {
     provisioning_t *provisioning_packet = (provisioning_t *)lora_data->data;
-    if (provisioning_mngr_check_app_key(lora_data, app_key) != ESP_OK) {
-        ESP_LOGE(TAG, "App key not matched! %s -- %s", (char *)&provisioning_packet->app_key, app_key);
-        return ESP_FAIL;
+    if (provisioning_mngr_check_app_key(lora_data, app_key) == ESP_OK) {
+        return provisioning_mngr_approve_client(provisioning_packet);
     }
-    return provisioning_mngr_approve_client(provisioning_packet);
+    return ESP_FAIL;
 }
 
 esp_err_t provisioning_mngr_provis_is_ok(lora_tx_packet *lora_data, char *app_key)

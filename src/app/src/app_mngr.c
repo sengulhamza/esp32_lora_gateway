@@ -18,8 +18,6 @@ static const char *TAG = "appmngr";
 
 app_params_t app_params;
 
-static const char *s_app_mode = "client";
-
 static void app_core_init(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
