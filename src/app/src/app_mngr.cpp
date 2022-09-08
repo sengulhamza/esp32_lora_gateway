@@ -87,16 +87,6 @@ esp_err_t app_start(void)
 
     esp_err_t status = ESP_OK;
     status |= lora_process_start();
-    uint8_t version;
-    uint8_t i = 0;
-    while (i++ < 100) {
-        version = sx127x_read_reg(0x42);
-        ESP_LOGI(TAG, "version is:0x%x", version);
-        if (version == 0x12) {
-            break;
-        }
-        vTaskDelay(2);
-    }
     ESP_LOGI(TAG, "first init done... status: %d", status);
 
 #ifdef DEBUG_BUILD

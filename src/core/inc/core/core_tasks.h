@@ -16,6 +16,6 @@
 
 #define CORE_LORA_TASK_PRIO         (CORE_TASK_PRIO_MIN + 6)
 #define CORE_LORA_TASK_STACK        (4*KBYTE + CORE_TASK_MIN_STACK)
-#define CORE_LORA_TASK_NAME         "lora_process_task_rx"
+#define CORE_LORA_TASK_NAME         "lora_process_task_tx"
 
 #endif
