@@ -1,5 +1,5 @@
 set(sources
-    src/app_mngr.cpp
+    src/app_mngr.c
     src/lora_manager.c
     src/provisioning_manager.c
 )

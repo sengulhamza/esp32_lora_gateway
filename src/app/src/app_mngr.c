@@ -6,16 +6,19 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "esp_ota_ops.h"
+#include "cJSON.h"
 #include "core_includes.h"
 #include "core/sx127x.h"
 #include "core/utils.h"
-#include "app_config.h"
-#include "app_types.h"
+#include "app/app_config.h"
+#include "app/app_types.h"
 #include "app/lora_manager.h"
 
 static const char *TAG = "appmngr";
 
 app_params_t app_params;
+
+static const char *s_app_mode = "client";
 
 static void app_core_init(void)
 {
@@ -40,6 +43,60 @@ static char *app_get_serial(void)
         strcat(s_app_serial, utils_get_mac());
     }
     return s_app_serial;
+}
+
+static esp_err_t app_parse_config_data(char *data, uint16_t data_len)
+{
+    cJSON *root = cJSON_ParseWithLength(data, data_len);
+    if (!root) {
+        ESP_LOGE(TAG, "json string couldn't be parsed at line (%d)", __LINE__);
+        return ESP_FAIL;
+    }
+    cJSON *object  =  cJSON_GetObjectItemCaseSensitive(root, "device_type");
+    if (cJSON_IsString(object)) {
+        if (!strcmp(object->valuestring, APP_DEVICE_TYPE_MASTER_STR)) {
+            app_params.device_type = APP_DEVICE_IS_MASTER;
+        } else if (!strcmp(object->valuestring, APP_DEVICE_TYPE_CLIENT_STR)) {
+            app_params.device_type = APP_DEVICE_IS_CLIENT;
+        } else {
+            ESP_LOGW(TAG, "device_type object couldn't match any type(%s). device_type changed to default(%s).!", object->valuestring, APP_DEVICE_TYPE_MASTER_STR);
+        }
+        ESP_LOGI(TAG, "Device type is %d - %s", app_params.device_type, app_params.device_type ? APP_DEVICE_TYPE_CLIENT_STR : APP_DEVICE_TYPE_MASTER_STR);
+    }
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+static esp_err_t app_set_default_dev_config(void)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "device_type", APP_DEVICE_TYPE_MASTER_STR);
+    const char *ptr = cJSON_PrintUnformatted(root);
+    file_overwrite(APP_CONFIG_FILE_DEVICE_CFG, ptr, strlen(ptr));
+    cJSON_free((void *)ptr);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+static esp_err_t app_get_device_config(void)
+{
+    char *buff = NULL;
+    esp_err_t status = ESP_OK;
+
+    if (!file_is_exist(APP_CONFIG_FILE_DEVICE_CFG)) {
+        ESP_LOGE(TAG, "%s not found", APP_CONFIG_FILE_DEVICE_CFG);
+        if (app_set_default_dev_config() != ESP_OK) {
+            return ESP_FAIL;
+        }
+    }
+
+    int flen = file_read(APP_CONFIG_FILE_DEVICE_CFG, &buff);
+    if (flen > 0) {
+        ESP_LOGI(TAG, "%d bytes read from %s", flen, APP_CONFIG_FILE_DEVICE_CFG);
+        status = app_parse_config_data(buff, flen);
+    }
+    free((void *)buff);
+    return status;
 }
 
 #ifdef DEBUG_BUILD
@@ -86,6 +143,7 @@ esp_err_t app_start(void)
 #endif
 
     esp_err_t status = ESP_OK;
+    status |= app_get_device_config();
     status |= lora_process_start();
     ESP_LOGI(TAG, "first init done... status: %d", status);
 
