@@ -23,9 +23,9 @@ static const char *TAG = "lora_manager";
 static xQueueHandle s_tx_queue = {0};
 static TimerHandle_t s_client_test_payload_timer = NULL;
 
-lora_tx_packet tx_test_packet = {0};
+static lora_frame lora_tx_frame = {0}, lora_rx_frame = {0}, tx_queue_packet = {0};
 
-void lora_prepare_provisioning_packet(lora_tx_packet *packet)
+void lora_prepare_provisioning_packet(lora_frame *packet)
 {
     provisioning_t provisioning_packet = {
         .app_key = {TEST_APP_KEY},
@@ -39,7 +39,10 @@ void lora_prepare_provisioning_packet(lora_tx_packet *packet)
 
 esp_err_t lora_send_tx_queue(uint8_t packet_id, uint8_t *data, uint8_t data_len)
 {
-    lora_tx_packet tx_queue_packet = {0};
+    if (data_len > LORA_PACKET_MAX_DATA_LEN) {
+        ESP_LOGE(TAG, "data_len(%d) > LORA_PACKET_MAX_DATA_LEN(%d)", data_len, LORA_PACKET_MAX_DATA_LEN);
+        return ESP_FAIL;
+    }
     if (packet_id == LORA_PACKET_ID_PROVISING_OK) {
         lora_prepare_provisioning_packet(&tx_queue_packet);
         tx_queue_packet.packet_id = LORA_PACKET_ID_PROVISING_OK;
@@ -47,7 +50,7 @@ esp_err_t lora_send_tx_queue(uint8_t packet_id, uint8_t *data, uint8_t data_len)
     } else {
         tx_queue_packet.packet_id = packet_id;
         if (data != NULL) {
-            memcpy(&tx_queue_packet.data, data, data_len);
+            memcpy(tx_queue_packet.data, data, data_len);
         }
         if (data_len) {
             tx_queue_packet.data_len = data_len;
@@ -65,28 +68,29 @@ void lora_process_task_tx(void *p)
 {
     ESP_LOGI(TAG, "%s started", __func__);
 
-    uint8_t hello_lora[] = {"Hello lora devices!"};
+    uint8_t hello_lora[LORA_PACKET_MAX_DATA_LEN] = {"Hello lora devices!"};
     sx127x_send_packet(hello_lora, sizeof(hello_lora));
 
     if (app_params.device_type == APP_DEVICE_IS_CLIENT) {
         /* Client needs provisioning with master */
         while (!provisioning_mngr_check_device_is_approved()) {
-            lora_prepare_provisioning_packet(&tx_test_packet);
-            sx127x_send_packet((uint8_t *)&tx_test_packet, sizeof(tx_test_packet));
+            lora_prepare_provisioning_packet(&lora_tx_frame);
+            sx127x_send_packet((uint8_t *)&lora_tx_frame, sizeof(lora_tx_frame));
             ESP_LOGI(TAG, "provisioning packet sent");
             vTaskDelay(pdMS_TO_TICKS(5000));
         }
+        /* This timer using to generate test data from clients to master. TODO Remove later */
+        xTimerStart(s_client_test_payload_timer, portMAX_DELAY);
     }
     while (pdTRUE) {
-        lora_tx_packet tx_packet = {0};
-        if (xQueueReceive(s_tx_queue, (void *)&tx_packet, portMAX_DELAY)) {
-            sx127x_send_packet((uint8_t *)&tx_packet, sizeof(tx_packet));
-            ESP_LOGI(TAG, "there is a tx request. ID: %x", tx_packet.packet_id);
+        if (xQueueReceive(s_tx_queue, (void *)&lora_tx_frame, portMAX_DELAY)) {
+            sx127x_send_packet((uint8_t *)&lora_tx_frame, sizeof(lora_tx_frame));
+            ESP_LOGI(TAG, "there is a tx request. ID: %x", lora_tx_frame.packet_id);
         }
     }
 }
 
-void lora_rx_commander(lora_tx_packet *lora_rx_packet)
+void lora_rx_commander(lora_frame *lora_rx_packet)
 {
     ESP_LOGI(TAG, "%s handled", __func__);
     switch (lora_rx_packet->packet_id) {
@@ -94,9 +98,7 @@ void lora_rx_commander(lora_tx_packet *lora_rx_packet)
         provisioning_mngr_add_new_client(lora_rx_packet, TEST_APP_KEY);
         break;
     case LORA_PACKET_ID_PROVISING_OK:
-        if (provisioning_mngr_provis_is_ok(lora_rx_packet, TEST_APP_KEY) == ESP_OK) {
-            xTimerStart(s_client_test_payload_timer, portMAX_DELAY);
-        }
+        provisioning_mngr_provis_is_ok(lora_rx_packet, TEST_APP_KEY);
         break;
     default:
         break;
@@ -109,10 +111,9 @@ void lora_process_task_rx(void *pvParameter)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         ESP_LOGW(TAG, "%s handled.", __func__);
         if (sx127x_received()) {
-            lora_tx_packet lora_rx_packet;
-            sx127x_receive_packet((uint8_t *)&lora_rx_packet, sizeof(lora_rx_packet));
-            ESP_LOG_BUFFER_HEXDUMP(TAG, &lora_rx_packet, sizeof(lora_rx_packet), ESP_LOG_INFO);
-            lora_rx_commander(&lora_rx_packet);
+            sx127x_receive_packet((uint8_t *)&lora_rx_frame, sizeof(lora_rx_frame));
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &lora_rx_frame, sizeof(lora_rx_frame), ESP_LOG_INFO);
+            lora_rx_commander(&lora_rx_frame);
         }
         sx127x_receive();
     }
@@ -120,7 +121,7 @@ void lora_process_task_rx(void *pvParameter)
 
 static void client_timer_cb(TimerHandle_t xTimer)
 {
-    uint8_t test_data[] = {"0123456789ABCDEF_client_test_data"};
+    static uint8_t test_data[LORA_PACKET_MAX_DATA_LEN] = {"0123456789ABCDEF_client_test_data"};
     lora_send_tx_queue(0xAE, test_data, sizeof(test_data));
 
     ESP_LOGW(TAG, "free_heap/min_heap size %d/%d Bytes",
@@ -135,11 +136,13 @@ esp_err_t lora_process_start(void)
     sx127x_set_task_params(lora_process_task_rx);
 
     sx127x_init();
-    s_tx_queue = xQueueCreate(LORA_TX_QUEUE_SIZE, sizeof(lora_tx_packet));
+    ESP_LOGI(TAG, "size of lora frame is:%d", sizeof(lora_frame));
+    s_tx_queue = xQueueCreate(LORA_TX_QUEUE_SIZE, sizeof(lora_frame));
     if (!s_tx_queue) {
         ESP_LOGE(TAG, "couldn't create the lora tx queue!");
         return ESP_FAIL;
     }
+
     ret |= xTaskCreate(lora_process_task_tx,
                        CORE_LORA_TASK_NAME,
                        CORE_LORA_TASK_STACK,
@@ -151,7 +154,7 @@ esp_err_t lora_process_start(void)
     if (app_params.device_type == APP_DEVICE_IS_CLIENT) {
         s_client_test_payload_timer = xTimerCreate(
                                           "client_test_payload_timer",
-                                          (1000) / portTICK_PERIOD_MS,
+                                          (5000) / portTICK_PERIOD_MS,
                                           pdTRUE,                  // Auto-reload
                                           NULL,                    // Timer ID
                                           client_timer_cb);        // Callback function

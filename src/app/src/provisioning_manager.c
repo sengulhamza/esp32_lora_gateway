@@ -47,7 +47,7 @@ static esp_err_t provisioning_mngr_approve_client(provisioning_t *provisioning_p
     return ESP_FAIL;
 }
 
-static esp_err_t provisioning_mngr_check_app_key(lora_tx_packet *lora_data, char *app_key)
+static esp_err_t provisioning_mngr_check_app_key(lora_frame *lora_data, char *app_key)
 {
     provisioning_t *provisioning_packet = (provisioning_t *)lora_data->data;
     if (!strncmp((char *)&provisioning_packet->app_key, app_key, sizeof(provisioning_packet->app_key))) {
@@ -59,7 +59,7 @@ static esp_err_t provisioning_mngr_check_app_key(lora_tx_packet *lora_data, char
     return ESP_FAIL;
 }
 
-esp_err_t provisioning_mngr_add_new_client(lora_tx_packet *lora_data, char *app_key)
+esp_err_t provisioning_mngr_add_new_client(lora_frame *lora_data, char *app_key)
 {
     provisioning_t *provisioning_packet = (provisioning_t *)lora_data->data;
     if (provisioning_mngr_check_app_key(lora_data, app_key) == ESP_OK) {
@@ -68,7 +68,7 @@ esp_err_t provisioning_mngr_add_new_client(lora_tx_packet *lora_data, char *app_
     return ESP_FAIL;
 }
 
-esp_err_t provisioning_mngr_provis_is_ok(lora_tx_packet *lora_data, char *app_key)
+esp_err_t provisioning_mngr_provis_is_ok(lora_frame *lora_data, char *app_key)
 {
     if (provisioning_mngr_check_app_key(lora_data, app_key) != ESP_OK) {
         return ESP_FAIL;

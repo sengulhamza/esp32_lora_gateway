@@ -9,6 +9,8 @@
 #include "sx127x.h"
 
 #define SX127X_UNSED_PIN_NUM        -1
+#define SX127X_BUS_READ_MASK        0x7F
+#define SX127X_BUS_WRITE_MASK       0x80
 #define SX127X_VERSION              0x12
 #define SX127X_VERSION_TIMEOUT_S    2
 
@@ -105,11 +107,11 @@ static void sx127x_init_spi(void)
         .miso_io_num =  sx127x_conf.pin_miso,
         .mosi_io_num =  sx127x_conf.pin_mosi,
         .sclk_io_num =  sx127x_conf.pin_sclk,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = 0,
+        .quadwp_io_num = SX127X_UNSED_PIN_NUM,
+        .quadhd_io_num = SX127X_UNSED_PIN_NUM,
+        .max_transfer_sz = 4092,
     };
-    esp_err_t err = spi_bus_initialize(sx127x_conf.spi_host, &spi_bus_config, SPI_DMA_DISABLED);
+    esp_err_t err = spi_bus_initialize(sx127x_conf.spi_host, &spi_bus_config, SPI_DMA_CH_AUTO);
     ESP_ERROR_CHECK(err);
 
     spi_device_interface_config_t spi_config = {
@@ -117,7 +119,7 @@ static void sx127x_init_spi(void)
         .clock_speed_hz = SPI_MASTER_FREQ_8M,
         .command_bits = 0,
         .address_bits = 8,
-        .spics_io_num = -1,
+        .spics_io_num = SX127X_UNSED_PIN_NUM,
         .queue_size = 1,
         .pre_cb = assert_nss,
         .post_cb = deassert_nss,
@@ -163,24 +165,24 @@ static void IRAM_ATTR deassert_nss(spi_transaction_t *trans)
 
 void sx127x_write_reg(uint8_t addr, uint8_t data)
 {
-    sx127x_spi_write(addr | 0x80, &data, 1);
+    sx127x_spi_write(addr | SX127X_BUS_WRITE_MASK, &data, 1);
 }
 
 void sx127x_write_buf(uint8_t addr, uint8_t *buf, size_t len)
 {
-    sx127x_spi_write(addr | 0x80, buf, len);
+    sx127x_spi_write(addr | SX127X_BUS_WRITE_MASK, buf, len);
 }
 
 uint8_t sx127x_read_reg(uint8_t addr)
 {
-    uint8_t reg_value_buf;
-    sx127x_spi_read(addr & 0x7f, &reg_value_buf, 1);
+    uint8_t reg_value_buf = 0;
+    sx127x_spi_read(addr & SX127X_BUS_READ_MASK, &reg_value_buf, 1);
     return reg_value_buf;
 }
 
 void sx127x_read_buf(uint8_t addr, uint8_t *buf, size_t len)
 {
-    sx127x_spi_read(addr & 0x7f, buf, len);
+    sx127x_spi_read(addr & SX127X_BUS_READ_MASK, buf, len);
 }
 
 void sx127x_set_frequency(long frequency)
@@ -214,13 +216,13 @@ void sx127x_send_packet(uint8_t *buf, size_t size)
     sx127x_idle();
     sx127x_write_reg(REG_FIFO_ADDR_PTR, 0);
 
-    sx127x_write_buf(REG_FIFO, buf, size); //write module tx fifo from buffer
+    /*  write tx data from buffer to module tx fifo */
+    sx127x_write_buf(REG_FIFO, buf, size);
 
-    sx127x_write_reg(REG_PAYLOAD_LENGTH, size); //write buffer len
+    /*  write tx buffer len */
+    sx127x_write_reg(REG_PAYLOAD_LENGTH, size);
 
-    /*
-     * Start transmission and wait for conclusion.
-     */
+    /*  Start transmission and wait for conclusion. */
     sx127x_write_reg(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
     while ((sx127x_read_reg(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) == 0) {
         vTaskDelay(2);
@@ -237,18 +239,13 @@ void sx127x_receive(void)
 
 uint8_t sx127x_received(void)
 {
-    return (sx127x_read_reg(REG_IRQ_FLAGS) & IRQ_RX_DONE_MASK) ? 1 : 0;
+    return sx127x_read_reg(REG_IRQ_FLAGS) & IRQ_RX_DONE_MASK;
 }
 
-void sx127x_set_tx_power(int level)
+void sx127x_set_tx_power(uint8_t level)
 {
-    // RF9x module uses PA_BOOST pin
-    if (level < 2) {
-        level = 2;
-    } else if (level > 17) {
-        level = 17;
-    }
-    sx127x_write_reg(REG_PA_CONFIG, PA_BOOST | (level - 2));
+    uint8_t opt_level = level < 2 ? 2 : level > 17 ? 17 : level;
+    sx127x_write_reg(REG_PA_CONFIG, PA_BOOST | (opt_level - 2));
 }
 
 void sx127x_explicit_header_mode(void)
@@ -259,38 +256,23 @@ void sx127x_explicit_header_mode(void)
 
 int sx127x_receive_packet(uint8_t *buf, size_t size)
 {
-    int len = 0;
-
-    /*
-     * Check interrupts.
-     */
+    /* check interrupts. */
     uint8_t irq = sx127x_read_reg(REG_IRQ_FLAGS);
     sx127x_write_reg(REG_IRQ_FLAGS, irq);
-    if ((irq & IRQ_RX_DONE_MASK) == 0) {
-        return 0;
-    }
-    if (irq & IRQ_PAYLOAD_CRC_ERROR_MASK) {
+    if (!(irq & IRQ_RX_DONE_MASK) || (irq & IRQ_PAYLOAD_CRC_ERROR_MASK)) {
         return 0;
     }
 
-    /*
-     * Find packet size.
-     */
-    if (__implicit) {
-        len = sx127x_read_reg(REG_PAYLOAD_LENGTH);
-    } else {
-        len = sx127x_read_reg(REG_RX_NB_BYTES);
-    }
+    /* find packet size. */
+    int len = __implicit ? sx127x_read_reg(REG_PAYLOAD_LENGTH) : sx127x_read_reg(REG_RX_NB_BYTES);
 
-    /*
-     * Transfer data from radio.
-     */
+    /* transfer data from radio. */
     sx127x_idle();
     sx127x_write_reg(REG_FIFO_ADDR_PTR, sx127x_read_reg(REG_FIFO_RX_CURRENT_ADDR));
-    if (len > size) {
-        len = size;
-    }
-    sx127x_read_buf(REG_FIFO, buf, len); //read rx fifo to buffer
+    len = len > size ? size : len;
+
+    /* read rx fifo to buffer */
+    sx127x_read_buf(REG_FIFO, buf, len);
     return len;
 }
 
