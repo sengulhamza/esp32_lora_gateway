@@ -2,6 +2,7 @@ set(sources
     src/file_mngr.c
     src/sx127x.c
     src/utils.c
+    src/cryption_mngr.c
 )
 
 idf_component_register(
@@ -10,6 +11,7 @@ idf_component_register(
     REQUIRES freertos
             spiffs
             common
+            mbedtls
 )
 
 if (GCOV_BUILD)
