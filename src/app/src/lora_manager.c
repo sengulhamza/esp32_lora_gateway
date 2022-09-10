@@ -71,10 +71,15 @@ void lora_process_task_tx(void *p)
 
     if (app_params.device_type == APP_DEVICE_IS_CLIENT) {
         /* Client needs provisioning with master */
+        lora_prepare_provisioning_packet(&lora_tx_frame);
         while (!provisioning_mngr_check_device_is_approved()) {
-            lora_prepare_provisioning_packet(&lora_tx_frame);
-            sx127x_send_packet((uint8_t *)&lora_tx_frame, sizeof(lora_tx_frame));
-            ESP_LOGI(TAG, "provisioning packet sent");
+            lora_frame tx_enc_buff = {0};
+            cryption_mngr_encrypt((char *)&lora_tx_frame, sizeof(lora_frame), (char *)&tx_enc_buff);
+            sx127x_send_packet((uint8_t *)&tx_enc_buff, sizeof(lora_frame));
+            ESP_LOGW(TAG, "sent provisioning packet:");
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &lora_tx_frame, sizeof(lora_frame), ESP_LOG_INFO);
+            ESP_LOGW(TAG, "sent provisioning encrypted packet:");
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &tx_enc_buff, sizeof(lora_frame), ESP_LOG_INFO);
             vTaskDelay(pdMS_TO_TICKS(5000));
         }
         /* This timer using to generate test data from clients to master. TODO Remove later */

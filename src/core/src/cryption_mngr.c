@@ -8,12 +8,19 @@
 
 #define TEST_INPUT_LENGTH 256
 
-#define CHECK_AES_LEN(len)                                             \
-    if (len < 16) len = 16;                                            \
-    if ((len % 16)) {                                                  \
-        ESP_LOGE(TAG, "For CBC it has to be a multiple of 16 bytes."); \
-        return CRYPTION_FAIL;                                          \
-    }                                                                  \
+#define CHECK_AES_LEN(len)                                              \
+    if (len < 16) len = 16;                                             \
+    if ((len % 16)) {                                                   \
+        ESP_LOGE(TAG, "For CBC it has to be a multiple of 16 bytes.");  \
+        return CRYPTION_FAIL;                                           \
+    }                                                                   \
+
+#define CHECK_IS_NULL(ptr)                                              \
+        if (ptr != NULL) {                                              \
+             ESP_LOGE(TAG, "%s already inited!", __func__);             \
+             return ESP_FAIL;                                           \
+        }                                                               \
+                                                                        \
 
 static const char *TAG = "cryption_mngr";
 
@@ -51,6 +58,10 @@ static esp_err_t cryption_mngr_set_key(s_cryption_if_t *s_cryption_ifp)
 
 esp_err_t cryption_mngr_init(char *key)
 {
+    CHECK_IS_NULL(s_cryption_if.aes);
+    CHECK_IS_NULL(s_cryption_if.enc_key);
+    CHECK_IS_NULL(s_cryption_if.iv_in);
+    CHECK_IS_NULL(s_cryption_if.iv_out);
     mbedtls_aes_init(&s_aes);
     s_cryption_if.aes = &s_aes;
     s_cryption_if.enc_key = (uint8_t *)strdup(key);
