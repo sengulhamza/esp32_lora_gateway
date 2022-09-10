@@ -11,6 +11,7 @@
 #include "core/core_tasks.h"
 #include "core/sx127x.h"
 #include "core/utils.h"
+#include "core/cryption_mngr.h"
 #include "app/app_types.h"
 #include "app/lora_manager.h"
 #include "app/provisioning_manager.h"
@@ -136,6 +137,8 @@ esp_err_t lora_process_start(void)
     sx127x_set_task_params(lora_process_task_rx);
 
     sx127x_init();
+    cryption_mngr_init(TEST_APP_KEY);
+
     ESP_LOGI(TAG, "size of lora frame is:%d", sizeof(lora_frame));
     s_tx_queue = xQueueCreate(LORA_TX_QUEUE_SIZE, sizeof(lora_frame));
     if (!s_tx_queue) {
