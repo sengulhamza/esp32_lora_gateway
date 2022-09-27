@@ -1,3 +1,8 @@
+
+## Project Landing Page
+
+[Web Site](https://meplis.dev/lora_gw)
+ 
 # How to build
 
 ```
@@ -41,3 +46,7 @@ git checkout -b feature/branch-name
 - If your commit fixing a bug branch name will be like `bugfix/branch-name`
 - Before push your commit, write a clear and concise explanation with -m option
 ---
+
+## License
+
+[GPL-V3](https://github.com/sengulhamza/esp32_lora_gateway/blob/master/LICENSE)
