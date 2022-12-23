@@ -12,6 +12,8 @@ idf_component_register(
             spiffs
             common
             mbedtls
+            esp_wifi
+            driver
 )
 
 if (GCOV_BUILD)

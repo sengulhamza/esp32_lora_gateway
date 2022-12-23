@@ -9,13 +9,20 @@ idf_component_register(
     INCLUDE_DIRS . inc inc/app
     REQUIRES freertos
             esp_system
+            esp_wifi
+            esp_eth
+            esp_phy
+            lwip
+            efuse
+            esp_netif
+            esp_event
             nvs_flash
             app_update
             core
             json
 )
 
-target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_17)
+target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_20)
 
 if (GCOV_BUILD)
 MESSAGE(STATUS "Gcov build enabled for app component")

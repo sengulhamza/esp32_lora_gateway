@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -21,7 +22,7 @@
 
 static const char *TAG = "lora_manager";
 
-static xQueueHandle s_tx_queue = {0};
+static QueueHandle_t s_tx_queue = {0};
 static TimerHandle_t s_client_test_payload_timer = NULL;
 
 static lora_frame lora_tx_frame = {0}, lora_rx_frame = {0}, tx_queue_packet = {0};
@@ -136,7 +137,7 @@ static void client_timer_cb(TimerHandle_t xTimer)
     static uint8_t test_data[LORA_PACKET_MAX_DATA_LEN] = {"0123456789ABCDEF_client_test_data"};
     lora_send_tx_queue(0xAE, test_data, sizeof(test_data));
 
-    ESP_LOGW(TAG, "free_heap/min_heap size %d/%d Bytes",
+    ESP_LOGW(TAG, "free_heap/min_heap size %" PRIu32 "/%" PRIu32 " Bytes",
              esp_get_free_heap_size(),
              esp_get_minimum_free_heap_size());
 }
