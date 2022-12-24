@@ -105,7 +105,7 @@ static void print_app_info(void)
     esp_app_desc_t app_desc;
     ESP_ERROR_CHECK(esp_ota_get_partition_description(running, &app_desc));
 
-    ESP_LOGI(TAG, "%s %s has started from @%x",
+    ESP_LOGI(TAG, "%s %s has started from @%" PRIu32 "",
              app_desc.project_name,
              app_desc.version,
              running->address
@@ -116,7 +116,7 @@ static void print_app_info(void)
 
 static void print_heap_usage(const char *msg)
 {
-    ESP_LOGW(TAG, "(%s):free_heap/min_heap size %d/%d Bytes",
+    ESP_LOGW(TAG, "(%s):free_heap/min_heap size %" PRIu32 "/%" PRIu32 " Bytes",
              msg,
              esp_get_free_heap_size(),
              esp_get_minimum_free_heap_size());
