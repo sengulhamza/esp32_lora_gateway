@@ -18,7 +18,7 @@ typedef struct __attribute__((packed))
     uint8_t data[LORA_PACKET_MAX_DATA_LEN];
     uint16_t data_len;
     uint8_t end_of_frame;
-} lora_frame; //Total frame length has to be a multiple of 16 bytes.
+} lora_frame_t;
 
 esp_err_t lora_process_start(void);
 esp_err_t lora_send_tx_queue(uint8_t packet_id, uint8_t *data, uint8_t data_len);

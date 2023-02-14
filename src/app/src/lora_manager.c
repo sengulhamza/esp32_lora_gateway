@@ -24,10 +24,9 @@ static const char *TAG = "lora_manager";
 
 static QueueHandle_t s_tx_queue = {0};
 static TimerHandle_t s_client_test_payload_timer = NULL;
+static lora_frame_t s_lora_tx_frame = {0}, s_lora_rx_frame = {0}, s_tx_queue_packet = {0};
 
-static lora_frame lora_tx_frame = {0}, lora_rx_frame = {0}, tx_queue_packet = {0};
-
-void lora_prepare_provisioning_packet(lora_frame *packet)
+void lora_prepare_provisioning_packet(lora_frame_t *packet)
 {
     provisioning_t provisioning_packet = {
         .app_key = {TEST_APP_KEY},
@@ -46,20 +45,20 @@ esp_err_t lora_send_tx_queue(uint8_t packet_id, uint8_t *data, uint8_t data_len)
         return ESP_FAIL;
     }
     if (packet_id == LORA_PACKET_ID_PROVISING_OK) {
-        lora_prepare_provisioning_packet(&tx_queue_packet);
-        tx_queue_packet.packet_id = LORA_PACKET_ID_PROVISING_OK;
+        lora_prepare_provisioning_packet(&s_tx_queue_packet);
+        s_tx_queue_packet.packet_id = LORA_PACKET_ID_PROVISING_OK;
         ESP_LOGW(TAG, "%s handled", __func__);
     } else {
-        tx_queue_packet.packet_id = packet_id;
+        s_tx_queue_packet.packet_id = packet_id;
         if (data != NULL) {
-            memcpy(tx_queue_packet.data, data, data_len);
+            memcpy(s_tx_queue_packet.data, data, data_len);
         }
         if (data_len) {
-            tx_queue_packet.data_len = data_len;
+            s_tx_queue_packet.data_len = data_len;
         }
-        tx_queue_packet.end_of_frame = 0xDE;
+        s_tx_queue_packet.end_of_frame = 0xDE;
     }
-    if (xQueueSend(s_tx_queue, (void *)&tx_queue_packet, 0) == pdPASS) {
+    if (xQueueSend(s_tx_queue, (void *)&s_tx_queue_packet, 0) == pdPASS) {
         ESP_LOGI(TAG, "Lora tx command processed, waiting msg cnt:%d", uxQueueMessagesWaiting(s_tx_queue));
         return ESP_OK;
     }
@@ -72,33 +71,33 @@ void lora_process_task_tx(void *p)
 
     if (app_params.device_type == APP_DEVICE_IS_CLIENT) {
         /* Client needs provisioning with master */
-        lora_prepare_provisioning_packet(&lora_tx_frame);
+        lora_prepare_provisioning_packet(&s_lora_tx_frame);
         while (!provisioning_mngr_check_device_is_approved()) {
-            lora_frame tx_enc_buff = {0};
-            cryption_mngr_encrypt((char *)&lora_tx_frame, sizeof(lora_frame), (char *)&tx_enc_buff);
-            sx127x_send_packet((uint8_t *)&tx_enc_buff, sizeof(lora_frame));
+            lora_frame_t tx_enc_buff = {0};
+            cryption_mngr_encrypt((char *)&s_lora_tx_frame, sizeof(lora_frame_t), (char *)&tx_enc_buff);
+            sx127x_send_packet((uint8_t *)&tx_enc_buff, sizeof(lora_frame_t));
             ESP_LOGW(TAG, "sent provisioning packet:");
-            ESP_LOG_BUFFER_HEXDUMP(TAG, &lora_tx_frame, sizeof(lora_frame), ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &s_lora_tx_frame, sizeof(lora_frame_t), ESP_LOG_INFO);
             ESP_LOGW(TAG, "sent provisioning encrypted packet:");
-            ESP_LOG_BUFFER_HEXDUMP(TAG, &tx_enc_buff, sizeof(lora_frame), ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &tx_enc_buff, sizeof(lora_frame_t), ESP_LOG_INFO);
             vTaskDelay(pdMS_TO_TICKS(5000));
         }
         /* This timer using to generate test data from clients to master. TODO Remove later */
         xTimerStart(s_client_test_payload_timer, portMAX_DELAY);
     }
     while (pdTRUE) {
-        if (xQueueReceive(s_tx_queue, (void *)&lora_tx_frame, portMAX_DELAY)) {
-            lora_frame tx_enc_buff = {0};
-            cryption_mngr_encrypt((char *)&lora_tx_frame, sizeof(lora_frame), (char *)&tx_enc_buff);
-            sx127x_send_packet((uint8_t *)&tx_enc_buff, sizeof(lora_frame));
-            ESP_LOGI(TAG, "encrypted packet sent, packet id:0x%x", lora_tx_frame.packet_id);
+        if (xQueueReceive(s_tx_queue, (void *)&s_lora_tx_frame, portMAX_DELAY)) {
+            lora_frame_t tx_enc_buff = {0};
+            cryption_mngr_encrypt((char *)&s_lora_tx_frame, sizeof(lora_frame_t), (char *)&tx_enc_buff);
+            sx127x_send_packet((uint8_t *)&tx_enc_buff, sizeof(lora_frame_t));
+            ESP_LOGI(TAG, "encrypted packet sent, packet id:0x%x", s_lora_tx_frame.packet_id);
             ESP_LOGW(TAG, "Sent encrypted packet:");
-            ESP_LOG_BUFFER_HEXDUMP(TAG, &tx_enc_buff, sizeof(lora_frame), ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &tx_enc_buff, sizeof(lora_frame_t), ESP_LOG_INFO);
         }
     }
 }
 
-void lora_rx_commander(lora_frame *lora_rx_packet)
+void lora_rx_commander(lora_frame_t *lora_rx_packet)
 {
     ESP_LOGI(TAG, "%s handled", __func__);
     switch (lora_rx_packet->packet_id) {
@@ -119,14 +118,14 @@ void lora_process_task_rx(void *pvParameter)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         ESP_LOGW(TAG, "%s handled.", __func__);
         if (sx127x_received()) {
-            lora_frame rx_rec_buff = {0};
-            sx127x_receive_packet((uint8_t *)&rx_rec_buff, sizeof(lora_frame));
-            cryption_mngr_decrypt((char *)&rx_rec_buff, sizeof(lora_frame), (char *)&lora_rx_frame);
+            lora_frame_t rx_rec_buff = {0};
+            sx127x_receive_packet((uint8_t *)&rx_rec_buff, sizeof(lora_frame_t));
+            cryption_mngr_decrypt((char *)&rx_rec_buff, sizeof(lora_frame_t), (char *)&s_lora_rx_frame);
             ESP_LOGW(TAG, "Encrypted frame:");
-            ESP_LOG_BUFFER_HEXDUMP(TAG, &rx_rec_buff, sizeof(lora_frame), ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &rx_rec_buff, sizeof(lora_frame_t), ESP_LOG_INFO);
             ESP_LOGW(TAG, "Decrypted frame:");
-            ESP_LOG_BUFFER_HEXDUMP(TAG, &lora_rx_frame, sizeof(lora_frame), ESP_LOG_INFO);
-            lora_rx_commander(&lora_rx_frame);
+            ESP_LOG_BUFFER_HEXDUMP(TAG, &s_lora_rx_frame, sizeof(lora_frame_t), ESP_LOG_INFO);
+            lora_rx_commander(&s_lora_rx_frame);
         }
         sx127x_receive();
     }
@@ -152,8 +151,8 @@ esp_err_t lora_process_start(void)
     sx127x_receive();
     cryption_mngr_init(TEST_APP_KEY);
 
-    ESP_LOGI(TAG, "size of lora frame is:%d", sizeof(lora_frame));
-    s_tx_queue = xQueueCreate(LORA_TX_QUEUE_SIZE, sizeof(lora_frame));
+    ESP_LOGI(TAG, "size of lora frame is:%d", sizeof(lora_frame_t));
+    s_tx_queue = xQueueCreate(LORA_TX_QUEUE_SIZE, sizeof(lora_frame_t));
     if (!s_tx_queue) {
         ESP_LOGE(TAG, "couldn't create the lora tx queue!");
         return ESP_FAIL;
