@@ -11,6 +11,8 @@ typedef enum {
 typedef struct {
     const char *dev_serial;
     const char *dev_model;
+    const char *dev_wifi_ssid;
+    const char *dev_wifi_pass;
     app_device_type device_type;
 } app_params_t;
 
