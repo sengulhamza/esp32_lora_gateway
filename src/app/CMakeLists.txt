@@ -2,6 +2,7 @@ set(sources
     src/app_mngr.c
     src/lora_manager.c
     src/provisioning_manager.c
+    src/wifi_mngr.c
 )
 
 idf_component_register(

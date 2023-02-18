@@ -13,6 +13,7 @@
 #include "core/utils.h"
 #include "app/app_config.h"
 #include "app/app_types.h"
+#include "app/wifi_mngr.h"
 #include "app/lora_manager.h"
 
 static const char *TAG = "appmngr";
@@ -62,6 +63,16 @@ static esp_err_t app_parse_config_data(char *data, uint16_t data_len)
         }
         ESP_LOGI(TAG, "Device type is %d - %s", app_params.device_type, app_params.device_type ? APP_DEVICE_TYPE_CLIENT_STR : APP_DEVICE_TYPE_MASTER_STR);
     }
+    object  =  cJSON_GetObjectItemCaseSensitive(root, "wifi_ssid");
+    if (cJSON_IsString(object)) {
+        app_params.dev_wifi_ssid = strdup(object->valuestring);
+        ESP_LOGI(TAG, "Device wifi ssid is %s", app_params.dev_wifi_ssid);
+    }
+    object  =  cJSON_GetObjectItemCaseSensitive(root, "wifi_pass");
+    if (cJSON_IsString(object)) {
+        app_params.dev_wifi_pass = strdup(object->valuestring);
+        ESP_LOGI(TAG, "Device wifi pass is %s", app_params.dev_wifi_pass);
+    }
     cJSON_Delete(root);
     return ESP_OK;
 }
@@ -70,6 +81,8 @@ static esp_err_t app_set_default_dev_config(void)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "device_type", APP_DEVICE_TYPE_MASTER_STR);
+    cJSON_AddStringToObject(root, "wifi_ssid", APP_CONFIG_WIFI_SSID);
+    cJSON_AddStringToObject(root, "wifi_pass", APP_CONFIG_WIFI_PASS);
     const char *ptr = cJSON_PrintUnformatted(root);
     file_overwrite(APP_CONFIG_FILE_DEVICE_CFG, ptr, strlen(ptr));
     cJSON_free((void *)ptr);
@@ -144,6 +157,9 @@ esp_err_t app_start(void)
     esp_err_t status = ESP_OK;
     status |= app_get_device_config();
     status |= lora_process_start();
+    if (app_params.device_type == APP_DEVICE_IS_MASTER) {
+        status |= wifi_mngr_connect(app_params.dev_wifi_ssid, app_params.dev_wifi_pass);
+    }
     ESP_LOGI(TAG, "first init done... status: %d", status);
 
 #ifdef DEBUG_BUILD
