@@ -3,6 +3,7 @@ set(sources
     src/lora_manager.c
     src/provisioning_manager.c
     src/wifi_mngr.c
+    src/mqtt_mngr.c
 )
 
 idf_component_register(
@@ -13,6 +14,7 @@ idf_component_register(
             esp_wifi
             esp_eth
             esp_phy
+            mqtt
             lwip
             efuse
             esp_netif
