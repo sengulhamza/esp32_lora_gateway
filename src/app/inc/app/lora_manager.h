@@ -10,6 +10,7 @@ extern "C" {
 
 #define LORA_PACKET_ID_PROVISING 0xE1
 #define LORA_PACKET_ID_PROVISING_OK 0xD1
+#define LORA_PACKET_ID_STREAM       0xF1
 #define LORA_PACKET_MAX_DATA_LEN    236   //maximum data len of frame.
 
 typedef struct __attribute__((packed))
