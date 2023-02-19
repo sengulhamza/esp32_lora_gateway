@@ -16,6 +16,7 @@
 #include "app/app_types.h"
 #include "app/lora_manager.h"
 #include "app/provisioning_manager.h"
+#include "app/mqtt_mngr.h"
 
 #define TEST_APP_KEY "1234567890abcdef"
 #define LORA_TX_QUEUE_SIZE 10
@@ -108,6 +109,9 @@ void lora_rx_commander(lora_frame_t *lora_rx_packet)
         provisioning_mngr_provis_is_ok(lora_rx_packet, TEST_APP_KEY);
         break;
     default:
+        if (app_params.device_type == APP_DEVICE_IS_MASTER) {
+            mqtt_publish_data(MQTT_CONFIG_DATA_TOPIC, (char *)lora_rx_packet->data);
+        }
         break;
     }
 }
