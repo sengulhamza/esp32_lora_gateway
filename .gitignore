@@ -21,3 +21,4 @@ build/*
 doc/*
 workspace.code-workspace
 sdkconfig
+googletest

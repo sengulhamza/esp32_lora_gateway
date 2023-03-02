@@ -13,4 +13,4 @@ astyle \
 	--unpad-paren \
 	--suffix=none \
 	"$@" \
-    --recursive "src/core/*.c" "src/core/*.h" "src/app/*.c" "src/app/*.h"
+    --recursive "src/core/*.c" "src/core/*.h" "src/app/*.c" "src/app/*.h" "src/test/*.cpp" "src/test/*.h"
